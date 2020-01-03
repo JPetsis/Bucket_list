@@ -1,12 +1,16 @@
-from flask import Flask
-app = Flask(__name__)
+import os
+from dotenv import load_dotenv
 
-@app.route('/')
-def hello_world():
-  return 'hello, world!'
+from app import create_app
 
+
+load_dotenv()
+
+
+config_name = os.getenv('APP_SETTINGS') # config_name = "development"
+app = create_app(config_name)
 
 
 
 if __name__ == '__main__':
-  app.run(debug=True)
+  app.run()
