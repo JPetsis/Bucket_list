@@ -1,8 +1,12 @@
+import os
 from flask_api import FlaskAPI
 from flask_sqlalchemy import SQLAlchemy
-
+from dotenv import load_dotenv
 from instance.config import app_config
 
+APP_ROOT = os.path.join(os.path.dirname(__file__), '..')   # refers to application_top
+dotenv_path = os.path.join(APP_ROOT, '.env')
+load_dotenv(dotenv_path)
 
 db = SQLAlchemy()
 

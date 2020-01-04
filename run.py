@@ -1,10 +1,10 @@
 import os
-from dotenv import load_dotenv
+
 
 from app import create_app
 
 
-load_dotenv()
+
 
 
 config_name = os.getenv('APP_SETTINGS') # config_name = "development"
