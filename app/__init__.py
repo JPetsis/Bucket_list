@@ -88,8 +88,11 @@ def create_app(config_name):
       return response
 
 
-  
-  
+  # import the authentication blueprint and register it on the app
+  from .auth import auth_blueprint
+  app.register_blueprint(auth_blueprint)
+
+
   
   return app
   
