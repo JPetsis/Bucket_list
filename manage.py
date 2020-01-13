@@ -3,8 +3,7 @@ import unittest
 from flask_script import Manager # class for handling a set of commands
 from flask_migrate import Migrate, MigrateCommand
 
-from app import db, create_app
-from app import models
+from app import db, create_app, models
 
 
 # initialize the app with all its configurations
