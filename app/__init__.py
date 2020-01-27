@@ -1,9 +1,10 @@
 import os
-from flask_api import FlaskAPI
+from flask_api import FlaskAPI, status
 from flask_sqlalchemy import SQLAlchemy
 from dotenv import load_dotenv
-from flask import request, jsonify, abort
+from flask import request, jsonify, abort, make_response
 from instance.config import app_config
+from flask_bcrypt import Bcrypt
 
 APP_ROOT = os.path.join(os.path.dirname(__file__), '..')   # refers to application_top
 dotenv_path = os.path.join(APP_ROOT, '.env')
@@ -13,79 +14,114 @@ db = SQLAlchemy()
 
 
 def create_app(config_name):
-  from app.models import Bucketlist
+  from app.models import Bucketlist, User
 
-  app = FlaskAPI(__name__, instance_relative_config = True)
+  app = FlaskAPI(__name__, instance_relative_config=True)
+  # overriding Werkzeugs built-in password hashing utilities using Bcrypt.
+  bcrypt = Bcrypt(app)
+
   app.config.from_object(app_config[config_name])
-  app.config.from_pyfile('config.py')
   app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
   db.init_app(app)
   
   @app.route('/bucketlists/', methods=['POST', 'GET'])
   def bucketlists():
-    if request.method == "POST":
-      name = str(request.data.get('name', ''))
-      if name:
-        bucketlist = Bucketlist(name = name)
-        bucketlist.save()
-        response = jsonify({
-            'id': bucketlist.id,
-            'name': bucketlist.name,
-            'date_created': bucketlist.date_created,
-            'date_modified': bucketlist.date_modified
-        })
-        response.status_code = 201
-        return response
-    else:
-      # GET
-      bucketlists = Bucketlist.get_all()
-      results = []
+    # get the access token
+    auth_header = request.headers.get('Authorization')
+    access_token = auth_header.split(" ")[1]
 
-      for bucketlist in bucketlists:
-        obj = {
-          'id': bucketlist.id,
-          'name': bucketlist.name,
-          'date_created': bucketlist.date_created,
-          'date_modified': bucketlist.date_modified
+    if access_token:
+      user_id = User.decode_token(access_token)
+      if not isinstance(user_id, str):
+        # Go ahead and handle the request, the user is authed
+        if request.method == "POST":
+          name = str(request.data.get('name', ''))
+          if name:
+            bucketlist = Bucketlist(name=name, created_by=user_id)
+            bucketlist.save()
+            response = jsonify({
+                'id': bucketlist.id,
+                'name': bucketlist.name,
+                'date_created': bucketlist.date_created,
+                'date_modified': bucketlist.date_modified,
+                'created_by': user_id
+            })
+
+            return make_response(response), 201
+
+        else:
+          # GET
+          # get all the bucketlists for this user
+          bucketlists = Bucketlist.get_all(user_id)
+          results = []
+
+          for bucketlist in bucketlists:
+              obj = {
+                'id': bucketlist.id,
+                'name': bucketlist.name,
+                'date_created': bucketlist.date_created,
+                'date_modified': bucketlist.date_modified,
+                'created_by': bucketlist.created_by
+              }
+              results.append(obj)
+
+              return make_response(jsonify(results)), 200
+      else:
+        # user is not legit, so the payload is an error message
+        message = user_id
+        response = {
+            'message': message
         }
-        results.append(obj)
-      response = jsonify(results)
-      response.status_code = 200
-      return response
+        return make_response(jsonify(response)), 401
 
   @app.route('/bucketlists/<int:id>', methods=['GET', 'PUT', 'DELETE'])
   def bucketlist_manipulation(id, **kwargs):
-    # retrieve a buckelist using it's ID
-    bucketlist = Bucketlist.query.filter_by(id=id).first()
-    if not bucketlist:
-      # Raise an HTTPException with a 404 not found status code
-      abort(404)
 
-    if request.method == 'DELETE':
-      bucketlist.delete()
-      return {"message": "bucketlist {} deleted successfully".format(bucketlist.id)}, 200
-    elif request.method == 'PUT':
-      name = str(request.data.get('name', ''))
-      bucketlist.name = name
-      bucketlist.save()
-      response = jsonify({
-        'id': bucketlist.id,
-        'name': bucketlist.name,
-        'date_created': bucketlist.date_created,
-        'date_modified': bucketlist.date_modified
-      })
-      response.status_code = 200
-      return response
-    else:
-      # GET
-      response = jsonify({
-        'id': bucketlist.id,
-        'name': bucketlist.name,
-        'date_created': bucketlist.date_created,
-        'date_modified': bucketlist.date_modified
-      })
-      response.status_code = 200
-      return response
+    auth_header = request.headers.get('Authorization')
+    access_token = auth_header.split(" ")[1]
+
+    if access_token:
+      user_id = User.decode_token(access_token)
+      if not isinstance(user_id, str):
+        bucketlist = Bucketlist.query.filter_by(id=id).first()
+        if not bucketlist:
+          # Raise an HTTPException with a 404 not found status code
+          abort(404)
+
+        if request.method == "DELETE":
+          bucketlist.delete()
+          return {
+              "message": "bucketlist {} deleted".format(bucketlist.id)
+          }, 200
+        elif request.method == 'PUT':
+          name = str(request.data.get('name', ''))
+          bucketlist.name = name
+          bucketlist.save()
+          response = {
+              'id': bucketlist.id,
+              'name': bucketlist.name,
+              'date_created': bucketlist.date_created,
+              'date_modified': bucketlist.date_modified,
+              'created_by': bucketlist.created_by
+          }
+          return make_response(jsonify(response)), 200
+        else:
+          # GET
+          response = jsonify({
+              'id': bucketlist.id,
+              'name': bucketlist.name,
+              'date_created': bucketlist.date_created,
+              'date_modified': bucketlist.date_modified,
+              'created_by': bucketlist.created_by
+          })
+          return make_response(response), 200
+      else:
+        # user is not legit, so the payload is an error message
+        message = user_id
+        response = {
+            'message': message
+        }
+        return make_response(jsonify(response)), 401
 
 
   # import the authentication blueprint and register it on the app

@@ -7,7 +7,7 @@ from app import db, create_app, models
 
 
 # initialize the app with all its configurations
-app = create_app(config_name = os.getenv('APP_SETTINGS'))
+app = create_app(config_name=os.getenv('APP_SETTINGS'))
 migrate = Migrate(app, db)
 # create an instance of class that will handle our commands
 manager = Manager(app)
@@ -18,12 +18,11 @@ manager.add_command('db', MigrateCommand)
 @manager.command
 def test():
   """Runs the unit tests without test coverage."""
-  test = unittest.TestLoader().discover('./tests', pattern='test*.py')
-  result = unittest.TextTestRunner(verbosity=2).run(test)
+  tests = unittest.TestLoader().discover('./tests', pattern='test*.py')
+  result = unittest.TextTestRunner(verbosity=2).run(tests)
   if result.wasSuccessful():
-    return 0
+      return 0
   return 1
-
 
 
 if __name__ == '__main__':
